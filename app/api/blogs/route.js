@@ -13,31 +13,56 @@ import { authOptions } from '../auth/[...nextauth]/route';
 // });
 
 export async function GET() {
-  await connectToDatabase();
-  const blogs = await Blog.find({}).populate('author', 'email').lean();
-  return NextResponse.json(blogs);
+  try {
+    await connectToDatabase();
+    const blogs = await Blog.find({})
+      .populate('author', 'email username')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Transform the blog data
+    const transformedBlogs = blogs.map(blog => ({
+      _id: blog._id.toString(),
+      title: blog.title,
+      content: blog.content,
+      author: blog.author ? {
+        _id: blog.author._id.toString(),
+        email: blog.author.email,
+        username: blog.author.username || blog.author.email
+      } : null,
+      createdAt: blog.createdAt,
+      updatedAt: blog.updatedAt,
+      likesCount: blog.likes?.length || 0,
+      commentsCount: blog.comments?.length || 0
+    }));
+
+    return NextResponse.json(transformedBlogs);
+  } catch (error) {
+    console.error('Error fetching blogs:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch blogs' },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(req) {
   try {
-    console.log('Starting blog creation...');
     await connectToDatabase();
     
     const session = await getServerSession(authOptions);
-    console.log('Session:', session);
 
     if (!session || !session.user) {
-      console.log('No session or user found');
-      return NextResponse.json({ error: 'Unauthorized - Please log in' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthorized - Please log in' },
+        { status: 401 }
+      );
     }
 
     const data = await req.json();
-    console.log('Received data:', data);
-    
     const { title, content } = data;
 
     if (!title || !content) {
-      console.log('Missing title or content');
       return NextResponse.json(
         { error: 'Title and content are required' },
         { status: 400 }
@@ -50,9 +75,10 @@ export async function POST(req) {
       author: session.user.id,
     });
 
-    console.log('Created blog object:', blog);
     await blog.save();
-    console.log('Blog saved successfully');
+
+    // Populate author information before sending response
+    await blog.populate('author', 'email username');
 
     return NextResponse.json(blog, { status: 201 });
   } catch (error) {
