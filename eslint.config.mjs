@@ -14,13 +14,33 @@ const compat = new FlatCompat({
 const eslintConfig = [
   js.configs.recommended,
   {
+    files: ['**/*.{js,jsx,mjs,cjs,ts,tsx}'],
     plugins: {
       '@next/next': nextPlugin
+    },
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        Buffer: 'readonly',
+        URL: 'readonly',
+        global: 'readonly',
+        window: 'readonly',
+        document: 'readonly'
+      },
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true
+        }
+      }
     },
     rules: {
       ...nextPlugin.configs.recommended.rules,
       'no-unused-vars': 'warn',
-      'no-console': 'warn'
+      'no-console': 'off',
+      'no-undef': 'error'
     }
   }
 ];
