@@ -3,21 +3,26 @@
 @tailwind utilities;
 
 body {
-  font-family: Arial, sans-serif;
+  font-family: 'Inter', sans-serif;
+  background-color: #f9f9f9;
+  color: #333;
   margin: 0;
   padding: 0;
+  line-height: 1.6;
 }
 
 header {
-  background-color: #333;
+  background-color: #4a90e2;
   color: white;
   padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 nav a, nav button {
   color: white;
   margin-right: 1rem;
   text-decoration: none;
+  font-weight: bold;
 }
 
 nav button {
@@ -28,11 +33,16 @@ nav button {
 
 main {
   padding: 2rem;
+  max-width: 800px;
+  margin: 0 auto;
 }
 
 footer {
-  background-color: #333;
+  background-color: #4a90e2;
   color: white;
   text-align: center;
   padding: 1rem;
+  position: fixed;
+  bottom: 0;
+  width: 100%;
 }

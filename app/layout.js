@@ -13,6 +13,31 @@ export default function RootLayout({ children }) {
 }
 
 export const metadata = {
-  title: 'Blog App',
-  description: 'A simple blog application with Next.js and MongoDB',
+  title: 'BlogApp by Nilesh Mori',
+  description: 'A modern blog application built with Next.js and MongoDB by Nilesh Mori. Share your thoughts and connect with others.',
+  authors: [{ name: 'Nilesh Mori' }],
+  keywords: ['blog', 'nextjs', 'mongodb', 'react', 'web development'],
+  creator: 'Nilesh Mori',
+  openGraph: {
+    title: 'BlogApp by Nilesh Mori',
+    description: 'A modern blog application built with Next.js and MongoDB',
+    url: 'https://blog-app.nileshmori.com',
+    siteName: 'BlogApp',
+    images: [
+      {
+        url: 'https://blog-app.nileshmori.com/og-image.jpg',
+        width: 1200,
+        height: 630,
+      },
+    ],
+    locale: 'en-US',
+    type: 'website',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  icons: {
+    icon: '/favicon.ico',
+  },
 };

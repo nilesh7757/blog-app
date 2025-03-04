@@ -2,29 +2,70 @@
 import { NextResponse } from 'next/server';
 import connectToDatabase from '../../../lib/mongodb';
 import User from '../../../models/User';
-import bcrypt from 'bcrypt';
-import crypto from 'crypto';
-import { sendVerificationEmail } from '../../../lib/email';
+import mongoose from 'mongoose';
 
 export async function POST(req) {
-  await connectToDatabase();
-  const { email, password } = await req.json();
+  try {
+    await connectToDatabase();
+    
+    const body = await req.json();
+    const { email, username } = body;
 
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    return NextResponse.json({ error: 'User already exists' }, { status: 400 });
+    if (!email || !username) {
+      return NextResponse.json(
+        { error: 'Email and username are required' },
+        { status: 400 }
+      );
+    }
+
+    const existingUser = await User.findOne({
+      $or: [{ email }, { username }]
+    });
+    
+    if (existingUser) {
+      if (existingUser.email === email) {
+        return NextResponse.json(
+          { error: 'Email already in use' },
+          { status: 400 }
+        );
+      }
+      if (existingUser.username === username) {
+        return NextResponse.json(
+          { error: 'Username already taken' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Create new user with username
+    const newUser = await User.create({
+      email,
+      username,
+      name: username,
+    });
+
+    console.log('User created:', {
+      id: newUser._id.toString(),
+      username: newUser.username
+    });
+
+    return NextResponse.json(
+      { 
+        message: 'User created successfully',
+        user: {
+          id: newUser._id.toString(),
+          email: newUser.email,
+          username: newUser.username,
+          name: newUser.name
+        }
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error('Registration error:', error);
+    return NextResponse.json(
+      { error: 'An error occurred during registration' },
+      { status: 500 }
+    );
   }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const verificationToken = crypto.randomBytes(32).toString('hex');
-  const user = new User({
-    email,
-    password: hashedPassword,
-    verificationToken,
-    emailVerified: false,
-  });
-
-  await user.save();
-  await sendVerificationEmail(email, verificationToken);
-  return NextResponse.json({ message: 'User created, please verify your email' }, { status: 201 });
 }

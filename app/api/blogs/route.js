@@ -2,14 +2,15 @@
 import { NextResponse } from 'next/server';
 import connectToDatabase from '../../../lib/mongodb';
 import Blog from '../../../models/Blog';
-import { getServerSession } from 'next-auth/next';
-import aws from 'aws-sdk';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../auth/[...nextauth]/route';
+// import aws from 'aws-sdk';
 
-const s3 = new aws.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION,
-});
+// const s3 = new aws.S3({
+//   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+//   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+//   region: process.env.AWS_REGION,
+// });
 
 export async function GET() {
   await connectToDatabase();
@@ -18,87 +19,112 @@ export async function GET() {
 }
 
 export async function POST(req) {
-  await connectToDatabase();
-  const session = await getServerSession();
+  try {
+    console.log('Starting blog creation...');
+    await connectToDatabase();
+    
+    const session = await getServerSession(authOptions);
+    console.log('Session:', session);
 
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session || !session.user) {
+      console.log('No session or user found');
+      return NextResponse.json({ error: 'Unauthorized - Please log in' }, { status: 401 });
+    }
+
+    const data = await req.json();
+    console.log('Received data:', data);
+    
+    const { title, content } = data;
+
+    if (!title || !content) {
+      console.log('Missing title or content');
+      return NextResponse.json(
+        { error: 'Title and content are required' },
+        { status: 400 }
+      );
+    }
+
+    const blog = new Blog({
+      title,
+      content,
+      author: session.user.id,
+    });
+
+    console.log('Created blog object:', blog);
+    await blog.save();
+    console.log('Blog saved successfully');
+
+    return NextResponse.json(blog, { status: 201 });
+  } catch (error) {
+    console.error('Blog creation error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to create blog' },
+      { status: 500 }
+    );
   }
-
-  const formData = await req.formData();
-  const title = formData.get('title');
-  const content = formData.get('content');
-  const files = formData.getAll('files');
-
-  const uploadedFiles = await Promise.all(
-    files.map(async (file) => {
-      const params = {
-        Bucket: process.env.S3_BUCKET_NAME,
-        Key: `${Date.now()}-${file.name}`,
-        Body: Buffer.from(await file.arrayBuffer()),
-        ContentType: file.type,
-        ACL: 'public-read',
-      };
-      const data = await s3.upload(params).promise();
-      return { url: data.Location, key: data.Key, ContentType: file.type };
-    })
-  );
-
-  const blog = new Blog({
-    title,
-    content,
-    author: session.user.id,
-    images: uploadedFiles.filter((file) => file.ContentType.startsWith('image')),
-    documents: uploadedFiles.filter((file) => !file.ContentType.startsWith('image')),
-  });
-
-  await blog.save();
-  return NextResponse.json(blog, { status: 201 });
 }
 
 export async function PUT(req) {
-  await connectToDatabase();
-  const session = await getServerSession();
+  try {
+    await connectToDatabase();
+    const session = await getServerSession(authOptions);
 
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id, title, content } = await req.json();
+    const blog = await Blog.findById(id);
+
+    if (!blog) {
+      return NextResponse.json({ error: 'Blog not found' }, { status: 404 });
+    }
+
+    if (blog.author.toString() !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    blog.title = title;
+    blog.content = content;
+    await blog.save();
+    return NextResponse.json(blog);
+  } catch (error) {
+    console.error('Blog update error:', error);
+    return NextResponse.json(
+      { error: 'Failed to update blog' },
+      { status: 500 }
+    );
   }
-
-  const { id, title, content } = await req.json();
-  const blog = await Blog.findById(id);
-
-  if (!blog) {
-    return NextResponse.json({ error: 'Blog not found' }, { status: 404 });
-  }
-  if (blog.author.toString() !== session.user.id) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  blog.title = title;
-  blog.content = content;
-  await blog.save();
-  return NextResponse.json(blog);
 }
 
 export async function DELETE(req) {
-  await connectToDatabase();
-  const session = await getServerSession();
+  try {
+    await connectToDatabase();
+    const session = await getServerSession(authOptions);
 
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    const blog = await Blog.findById(id);
+
+    if (!blog) {
+      return NextResponse.json({ error: 'Blog not found' }, { status: 404 });
+    }
+
+    if (blog.author.toString() !== session.user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    await blog.deleteOne();
+    return NextResponse.json({ message: 'Blog deleted' });
+  } catch (error) {
+    console.error('Blog deletion error:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete blog' },
+      { status: 500 }
+    );
   }
-
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get('id');
-  const blog = await Blog.findById(id);
-
-  if (!blog) {
-    return NextResponse.json({ error: 'Blog not found' }, { status: 404 });
-  }
-  if (blog.author.toString() !== session.user.id) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  await blog.remove();
-  return NextResponse.json({ message: 'Blog deleted' });
 }

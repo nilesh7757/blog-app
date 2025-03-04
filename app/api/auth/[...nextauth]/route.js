@@ -1,58 +1,79 @@
 // app/api/auth/[...nextauth]/route.js
 import NextAuth from 'next-auth';
-import GoogleProvider from 'next-auth/providers/google';
-import GitHubProvider from 'next-auth/providers/github';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import connectToDatabase from '../../../../lib/mongodb';
 import User from '../../../../models/User';
-import bcrypt from 'bcrypt';
 
-const authOptions = {
+export const authOptions = {
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    }),
-    GitHubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET,
-    }),
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
         email: { label: 'Email', type: 'text' },
-        password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        await connectToDatabase();
-        const user = await User.findOne({ email: credentials.email });
-        if (
-          user &&
-          user.emailVerified &&
-          user.password &&
-          (await bcrypt.compare(credentials.password, user.password))
-        ) {
-          return { id: user._id, email: user.email };
+        if (!credentials?.email) {
+          throw new Error('Email is required');
         }
-        return null;
+
+        try {
+          await connectToDatabase();
+          
+          const user = await User.findOne({ email: credentials.email });
+          
+          if (!user) {
+            throw new Error('No user found with this email');
+          }
+
+          // Return user data with username
+          return {
+            id: user._id.toString(),
+            email: user.email,
+            username: user.username,
+            name: user.username, // Use username as display name
+            image: user.image,
+          };
+        } catch (error) {
+          console.error('Auth Error:', error);
+          throw error;
+        }
       },
     }),
   ],
   session: {
     strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
+        token.email = user.email;
+        token.username = user.username;
+        token.name = user.username; // Use username as display name
+        token.image = user.image;
+      } else if (trigger === "update" && session) {
+        return { ...token, ...session.user };
       }
       return token;
     },
     async session({ session, token }) {
-      session.user.id = token.id;
+      if (token) {
+        session.user.id = token.id;
+        session.user.email = token.email;
+        session.user.username = token.username;
+        session.user.name = token.username; // Use username as display name
+        session.user.image = token.image;
+      }
       return session;
     },
   },
+  pages: {
+    signIn: '/login',
+    error: '/login',
+  },
+  secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === 'development',
 };
 
 const handler = NextAuth(authOptions);

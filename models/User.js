@@ -7,28 +7,47 @@ const userSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
-  password: {
+  username: {
     type: String,
+    required: false,
+    unique: false,
+    trim: true,
   },
   name: {
     type: String,
+    trim: true,
+  },
+  bio: {
+    type: String,
+    default: '',
   },
   image: {
     type: String,
+    default: '',
   },
   emailVerified: {
-    type: Boolean,
-    default: false,
-  },
-  verificationToken: {
-    type: String,
-  },
-  resetToken: {
-    type: String,
-  },
-  resetTokenExpiry: {
     type: Date,
+    default: null,
   },
+}, {
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
-export default mongoose.models.User || mongoose.model('User', userSchema);
+// Virtual for user's blogs
+userSchema.virtual('blogs', {
+  ref: 'Blog',
+  localField: '_id',
+  foreignField: 'author'
+});
+
+// Method to get display name
+userSchema.methods.getDisplayName = function() {
+  return this.username || this.name || this.email.split('@')[0];
+};
+
+// Check if the model exists before creating a new one
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+
+export default User;
