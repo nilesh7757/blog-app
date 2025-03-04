@@ -69,10 +69,21 @@ export default function Dashboard() {
         throw new Error(data.message || 'Failed to update profile');
       }
 
-      // Update session data
-      if (typeof window !== 'undefined') {
-        window.location.reload();
-      }
+      // Update the session with new user data
+      await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: data.username,
+          name: data.name,
+          image: data.image,
+        }),
+      });
+
+      // Reload the page to reflect changes
+      window.location.reload();
     } catch (err) {
       setError(err.message);
     } finally {

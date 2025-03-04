@@ -50,11 +50,17 @@ export const authOptions = {
         token.id = user.id;
         token.email = user.email;
         token.username = user.username;
-        token.name = user.username; // Use username as display name
+        token.name = user.name;
         token.image = user.image;
-      } else if (trigger === "update" && session) {
-        return { ...token, ...session.user };
       }
+      
+      // Handle session update
+      if (trigger === "update" && session) {
+        token.username = session.username;
+        token.name = session.name;
+        token.image = session.image;
+      }
+      
       return token;
     },
     async session({ session, token }) {
@@ -62,7 +68,7 @@ export const authOptions = {
         session.user.id = token.id;
         session.user.email = token.email;
         session.user.username = token.username;
-        session.user.name = token.username; // Use username as display name
+        session.user.name = token.name;
         session.user.image = token.image;
       }
       return session;
